@@ -6,6 +6,7 @@ import type {
 	IRequestOptions,
 	IDataObject,
 } from 'n8n-workflow';
+import { Readable } from 'stream';
 import { extractBearerToken, parseHeaders } from '../GenericFunctions';
 
 export const description: INodeProperties[] = [
@@ -107,6 +108,13 @@ export async function execute(
 	const downloadHeaders = parseHeaders(downloadHeadersParam);
 	const uploadHeaders = parseHeaders(uploadHeadersParam);
 
+	// Ensure Accept header is set to prevent automatic JSON parsing
+	// This forces the response to be treated as binary/stream
+	const finalDownloadHeaders: Record<string, string> = {
+		Accept: '*/*',
+		...downloadHeaders,
+	};
+
 	// Extract bearer token from upload URL if present
 	const { token } = extractBearerToken(uploadUrl);
 
@@ -134,7 +142,7 @@ export async function execute(
 		const downloadOptions: IRequestOptions = {
 			method: 'GET',
 			url: downloadUrl,
-			headers: downloadHeaders,
+			headers: finalDownloadHeaders,
 			encoding: null, // Get binary/stream response
 			resolveWithFullResponse: true,
 		};
@@ -178,12 +186,43 @@ export async function execute(
 
 		// Get the stream from download response
 		// The request helper returns response.body as a stream when encoding is null
-		const downloadStream = downloadResponse.body;
+		let downloadStream = downloadResponse.body;
 		
-		if (!downloadStream || typeof downloadStream.pipe !== 'function') {
+		// Handle case where response body is a Buffer instead of a stream
+		if (Buffer.isBuffer(downloadStream)) {
+			downloadStream = Readable.from(downloadStream);
+		}
+		
+		// Handle case where response body is an object (parsed JSON) - try to extract data
+		if (typeof downloadStream === 'object' && downloadStream !== null && !Buffer.isBuffer(downloadStream)) {
+			// Check if it's already a stream
+			if (typeof (downloadStream as any).pipe === 'function') {
+				// It's already a stream, use it
+			} else {
+				// Response was parsed as JSON/object - provide detailed error
+				const bodyType = typeof downloadStream;
+				const bodyKeys = downloadStream && typeof downloadStream === 'object' ? Object.keys(downloadStream).slice(0, 5) : [];
+				const bodyPreview = JSON.stringify(downloadStream).substring(0, 200);
+				
+				throw new Error(
+					`Download response from ${downloadUrl} is not a streamable format. ` +
+					`The response body type is: ${bodyType}. ` +
+					(bodyKeys.length > 0 ? `Response body keys: ${bodyKeys.join(', ')}. ` : '') +
+					`Response preview: ${bodyPreview}${bodyPreview.length >= 200 ? '...' : ''}. ` +
+					`This usually means the server returned JSON/text instead of binary data. ` +
+					`Please ensure the download URL returns a binary stream. ` +
+					`You may need to add headers like 'Accept: */*' to prevent automatic parsing.`
+				);
+			}
+		}
+		
+		// Final check: ensure we have a stream with pipe method
+		if (!downloadStream || typeof (downloadStream as any).pipe !== 'function') {
+			const bodyType = typeof downloadStream;
+			const bodyConstructor = downloadStream?.constructor?.name || 'unknown';
 			throw new Error(
 				`Download response from ${downloadUrl} is not a streamable format. ` +
-				`The response body type is: ${typeof downloadStream}. ` +
+				`The response body type is: ${bodyType}, constructor: ${bodyConstructor}. ` +
 				`Please ensure the download URL returns a binary stream.`
 			);
 		}

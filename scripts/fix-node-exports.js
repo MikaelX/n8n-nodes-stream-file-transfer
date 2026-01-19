@@ -47,6 +47,26 @@ function fixExports(filePath, className, exportName) {
 	return true;
 }
 
+// Copy SVG icon file to dist
+function copySvgIcon() {
+	const srcSvg = path.join(__dirname, '../src/nodes/SiteToSiteFileTransfer/transfer.svg');
+	const distSvg = path.join(__dirname, '../dist/nodes/SiteToSiteFileTransfer/transfer.svg');
+	
+	if (!fs.existsSync(srcSvg)) {
+		console.warn(`⚠️  SVG icon not found: ${srcSvg}`);
+		return false;
+	}
+	
+	// Ensure dist directory exists
+	const distDir = path.dirname(distSvg);
+	if (!fs.existsSync(distDir)) {
+		fs.mkdirSync(distDir, { recursive: true });
+	}
+	
+	fs.copyFileSync(srcSvg, distSvg);
+	return true;
+}
+
 // Fix node file
 const nodeFile = path.join(__dirname, '../dist/nodes/SiteToSiteFileTransfer/SiteToSiteFileTransfer.node.js');
 if (fs.existsSync(nodeFile)) {
@@ -54,5 +74,12 @@ if (fs.existsSync(nodeFile)) {
 	console.log('✓ Fixed node exports');
 } else {
 	console.warn(`Node file not found: ${nodeFile}`);
+}
+
+// Copy SVG icon
+if (copySvgIcon()) {
+	console.log('✓ Copied SVG icon');
+} else {
+	console.warn('⚠️  Failed to copy SVG icon');
 }
 
