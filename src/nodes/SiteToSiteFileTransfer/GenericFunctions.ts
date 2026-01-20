@@ -1,8 +1,30 @@
+/**
+ * Generic Utility Functions
+ * 
+ * Shared utility functions used by the Site to Site File Transfer node.
+ * Provides helper functions for parsing headers and extracting authentication tokens.
+ * 
+ * Functions:
+ * - extractBearerToken: Extracts bearer tokens from URL query strings
+ * - parseHeaders: Parses JSON header parameters into header objects
+ * 
+ * @module GenericFunctions
+ */
+
 import type { IDataObject } from 'n8n-workflow';
 import { URL } from 'url';
 
 /**
  * Extract bearer token from URL query string if present
+ * 
+ * Some APIs require bearer tokens in the URL query string (e.g., ?bearer=token).
+ * This function extracts the token while preserving the original URL structure.
+ * 
+ * @param uploadUrl - The upload URL that may contain a bearer token in query string
+ * @returns Object containing the extracted token (if found) and the original URL
+ * @example
+ * extractBearerToken('https://api.example.com/upload?bearer=abc123')
+ * // Returns: { token: 'abc123', cleanUrl: 'https://api.example.com/upload?bearer=abc123' }
  */
 export function extractBearerToken(uploadUrl: string): { token: string | null; cleanUrl: string } {
 	try {
@@ -24,6 +46,18 @@ export function extractBearerToken(uploadUrl: string): { token: string | null; c
 
 /**
  * Parse JSON headers parameter
+ * 
+ * Converts header parameters (which can be JSON strings or objects) into
+ * a standardized header object format. Handles both string JSON and object inputs.
+ * 
+ * @param headersParam - Headers as JSON string or object
+ * @returns Record of header key-value pairs (all values converted to strings)
+ * @example
+ * parseHeaders('{"Authorization": "Bearer token", "Content-Type": "application/json"}')
+ * // Returns: { Authorization: 'Bearer token', 'Content-Type': 'application/json' }
+ * 
+ * parseHeaders({ Authorization: 'Bearer token' })
+ * // Returns: { Authorization: 'Bearer token' }
  */
 export function parseHeaders(headersParam: string | IDataObject): Record<string, string> {
 	if (!headersParam) {
